@@ -5,14 +5,26 @@ import os
 
 KEY = Fernet.generate_key()
 f = Fernet(KEY)
-stored_data = {}
+if "stored_data" not in st.session_state:
+    st.session_state.stored_data = {}
+
 
 def store_data(data,key):
     salt = os.urandom(16)
     data_token = f.encrypt(data.encode())
     data_passkey = hashlib.pbkdf2_hmac('sha256',salt,key.encode(),100000)
-    stored_data[data_token] = data_passkey
+    st.session_state.stored_data[data_token] = {
+        "passkey":data_passkey,
+        "salt":salt
+        }
     return data_token
+
+def validate_data(stored_data,token,passkey):
+    token_b = bytes.fromhex(token)
+    salt = stored_data[token_b]["salt"]
+    valiadate_passkey = hashlib.pbkdf2_hmac('sha256',salt,passkey.encode(),100000)
+    if stored_data[token_b]['passkey'] == valiadate_passkey:
+        return 
 
 # Streamlit 
 
@@ -44,4 +56,6 @@ elif menu == "📂 Retrieve Data":
     token_r = st.text_input("📥 Enter data token")
     passkey_r = st.text_input("🔑 Enter passkey", type='password')
     if st.button('🗂 Decrypt Data'):
-        ""
+        validate = validate_data(st.session_state.stored_data,token_r,passkey_r)
+        if validate:
+            st.success('Yay')
