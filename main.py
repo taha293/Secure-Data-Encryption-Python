@@ -2,12 +2,21 @@ import streamlit as st
 import hashlib
 from cryptography.fernet import Fernet
 import os
+import time
 
-KEY = Fernet.generate_key()
-f = Fernet(KEY)
+if "KEY" not in st.session_state:
+    st.session_state.KEY = Fernet.generate_key()
+f = Fernet(st.session_state.KEY)
 if "stored_data" not in st.session_state:
     st.session_state.stored_data = {}
+if "attempt" not in st.session_state:
+    st.session_state.attempt = 3
+if "time" not in st.session_state:
+    st.session_state.time = 30
 
+def time_out():
+    time.sleep(1)
+    st.session_state.time = st.session_state.time - 1
 
 def store_data(data,key):
     salt = os.urandom(16)
@@ -20,11 +29,22 @@ def store_data(data,key):
     return data_token
 
 def validate_data(stored_data,token,passkey):
-    token_b = bytes.fromhex(token)
-    salt = stored_data[token_b]["salt"]
-    valiadate_passkey = hashlib.pbkdf2_hmac('sha256',salt,passkey.encode(),100000)
-    if stored_data[token_b]['passkey'] == valiadate_passkey:
-        return 
+        try:
+            token_bytes = bytes.fromhex(token) 
+            if token_bytes in stored_data:
+                salt = stored_data[token_bytes]["salt"]
+                validate_passkey = hashlib.pbkdf2_hmac('sha256', salt, passkey.encode(), 100000)
+                if stored_data[token_bytes]['passkey'] == validate_passkey:
+                    return f.decrypt(token_bytes).decode() 
+                else:
+                    return False
+            else:
+                return False
+        except ValueError:
+            return False
+        except KeyError:
+            return False
+
 
 # Streamlit 
 
@@ -58,4 +78,11 @@ elif menu == "📂 Retrieve Data":
     if st.button('🗂 Decrypt Data'):
         validate = validate_data(st.session_state.stored_data,token_r,passkey_r)
         if validate:
-            st.success('Yay')
+            st.success("Decrypted Successfully")
+            st.info(validate)
+        else:
+            if st.session_state.attempt == 0:
+                
+            else:
+                st.session_state.attempt = st.session_state.attempt - 1
+                st.error(f'Failed: You have {st.session_state.attempt} Attempts left')
